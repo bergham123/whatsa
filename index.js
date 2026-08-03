@@ -91,14 +91,13 @@ const client = new Client({
     clientId: "main",
     dataPath: SESSION_DIR,
   }),
-   puppeteer: {
+  puppeteer: {
     headless: true,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage", // يمنع مشاكل الذاكرة في GitHub Actions
+      "--disable-dev-shm-usage",
       "--disable-gpu",
-      "--no-first-run",
       "--disable-extensions",
       "--disable-background-networking",
       "--disable-background-timer-throttling",
