@@ -11,6 +11,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
+    container: node:22-bullseye
 
     steps:
       - name: Checkout repo
@@ -18,22 +19,18 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgbm-dev
+          apt-get update
+          apt-get install -y libgbm-dev libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
+          libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
+          libasound2 libpango-1.0-0 libcairo2 libatspi2.0-0
 
       - name: Install Node dependencies
         run: npm install
 
       - name: Run WhatsApp bot
         run: |
-          # محاولة التشغيل 3 مرات في حال انهار المتصفح في GitHub Actions
           n=0
           until [ "$n" -ge 3 ]
           do
@@ -45,8 +42,7 @@ jobs:
 
       - name: Clean up unnecessary session files
         run: |
-          echo "🧹 جاري تنظيف ملفات الكاش المؤقتة لتوفير المساحة..."
-          # حذف مجلدات الكاش والبيانات المؤقتة التي لا تؤثر على الجلسة
+          echo "🧹 جاري تنظيف ملفات الكاش..."
           find ./session -type d -name "Cache" -exec rm -rf {} + 2>/dev/null || true
           find ./session -type d -name "Code Cache" -exec rm -rf {} + 2>/dev/null || true
           find ./session -type d -name "GPUCache" -exec rm -rf {} + 2>/dev/null || true
@@ -58,22 +54,17 @@ jobs:
           find ./session -type d -name "ScriptCache" -exec rm -rf {} + 2>/dev/null || true
           find ./session -type d -name "Sessions" -exec rm -rf {} + 2>/dev/null || true
           find ./session -type d -name "Shared Dictionary" -exec rm -rf {} + 2>/dev/null || true
-          
-          # حذف ملفات القفل المؤقتة (الخاصة بتشغيل المتصفح فقط وليست قواعد البيانات)
           rm -f ./session/session-main/DevToolsActivePort 2>/dev/null || true
           rm -f ./session/session-main/SingletonLock 2>/dev/null || true
           rm -f ./session/session-main/SingletonCookie 2>/dev/null || true
           rm -f ./session/session-main/SingletonSocket 2>/dev/null || true
-          
-          echo "✅ تم التنظيف بنجاح!"
+          echo "✅ تم التنظيف!"
 
       - name: Commit updated files
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          # إجبار Git على نسيان الملفات الكبيرة التي تم تتبعها مسبقاً في Runs سابقة
           git rm -r --cached session --ignore-unmatch
-          # إضافة الملفات من جديد (بدون الكاش)
           git add --ignore-errors session dashboard aggregate.json logs
           git commit -m "update session, dashboard & logs $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
           git push
