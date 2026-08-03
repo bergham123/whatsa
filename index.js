@@ -92,8 +92,17 @@ const client = new Client({
     dataPath: SESSION_DIR,
   }),
   puppeteer: {
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
     headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage", // مهم جداً لمنع الانهيار في GitHub Actions
+      "--disable-gpu",
+      "--disable-accelerated-2d-canvas",
+      "--disable-software-rasterizer",
+      "--no-zygote",
+      "--single-process", // يقلل استهلاك الموارد بشكل كبير
+    ],
   },
 });
 
@@ -123,7 +132,6 @@ client.on("ready", async () => {
   let messages = [];
   let messageMode = MESSAGE_MODE;
 
-  // محاولة تحميل message.json أولاً
   if (await fs.pathExists(MESSAGES_FILE)) {
     try {
       const data = await fs.readJson(MESSAGES_FILE);
@@ -138,7 +146,6 @@ client.on("ready", async () => {
     }
   }
 
-  // إذا لم توجد رسائل من JSON، نقرأ message.txt
   if (messages.length === 0) {
     if (!(await fs.pathExists(MESSAGE_FILE))) {
       logMessage("❌ لا يوجد message.txt ولا message.json صالح");
@@ -153,7 +160,6 @@ client.on("ready", async () => {
     logMessage(`📝 تم تحميل رسالة واحدة من message.txt`);
   }
 
-  // عرض أول 3 رسائل كمثال
   logMessage(`📌 نماذج من الرسائل: ${messages.slice(0, 3).join(" | ")}${messages.length > 3 ? " ..." : ""}`);
 
   // ========== تحديد نقطة البداية ==========
@@ -166,7 +172,6 @@ client.on("ready", async () => {
     logMessage(`🔄 بدء من البداية (الفهرس ${startIndex})`);
   }
 
-  // عداد لتوزيع الرسائل بالتتابع (إن اخترنا sequential)
   let messageCounter = 0;
 
   // ========== الحلقة الرئيسية ==========
@@ -181,11 +186,10 @@ client.on("ready", async () => {
       continue;
     }
 
-    // اختيار الرسالة
     let currentMessage;
     if (messageMode === "random") {
       currentMessage = messages[Math.floor(Math.random() * messages.length)];
-    } else { // sequential
+    } else {
       currentMessage = messages[messageCounter % messages.length];
       messageCounter++;
     }
