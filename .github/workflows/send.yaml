@@ -2,72 +2,125 @@ name: WhatsApp Automation
 
 on:
   schedule:
-    - cron: '0 19 * * *'
+    - cron: '0 8 * * *'
   workflow_dispatch:
-  
+
 permissions:
   contents: write
 
 jobs:
   run:
-    runs-on: windows-latest
-
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      # ===== استعادة الجلسة من الكاش =====
+      - name: Restore session from cache
+        id: restore-session
+        uses: actions/cache/restore@v4
         with:
-          persist-credentials: true
+          path: session
+          key: whatsapp-session-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            whatsapp-session-${{ runner.os }}-
+            whatsapp-session-
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Ensure directories exist
+        run: mkdir -p session data logs dashboard
+
+      - name: Remove Chromium locks
+        run: |
+          find session -name "SingletonLock" -delete 2>/dev/null || true
+          find session -name "SingletonSocket" -delete 2>/dev/null || true
+          find session -name "SingletonCookie" -delete 2>/dev/null || true
+          find session -name "*.lock" -delete 2>/dev/null || true
+          find session -name "DevToolsActivePort" -delete 2>/dev/null || true
+
+      # ===== بناء الـ Docker Image =====
+      - name: Build Docker Image
+        run: docker build -t wa-bot .
+
+      # ===== تشغيل البوت داخل Docker =====
+      - name: Run WhatsApp bot in Docker
+        env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          API_SECRET: ${{ secrets.API_SECRET }}
+        run: |
+          docker run --rm \
+            -v $(pwd)/session:/app/session \
+            -v $(pwd)/data:/app/data \
+            -v $(pwd)/logs:/app/logs \
+            -v $(pwd)/dashboard:/app/dashboard \
+            -e WORKER_URL="$WORKER_URL" \
+            -e API_SECRET="$API_SECRET" \
+            wa-bot
+
+      # ===== تنظيف الملفات المؤقتة =====
+      - name: Clean temporary Chromium files
+        if: always()
+        run: |
+          rm -rf session/*/Cache 2>/dev/null || true
+          rm -rf session/*/"Code Cache" 2>/dev/null || true
+          rm -rf session/*/GPUCache 2>/dev/null || true
+          rm -rf session/*/Crashpad 2>/dev/null || true
+          rm -rf session/*/BrowserMetrics 2>/dev/null || true
+          rm -rf session/*/GrShaderCache 2>/dev/null || true
+          rm -rf session/*/GraphiteDawnCache 2>/dev/null || true
+          rm -rf session/*/ShaderCache 2>/dev/null || true
+          rm -rf session/*/DawnCache 2>/dev/null || true
+
+      # ===== التحقق من صلاحية الجلسة لحفظ الكاش =====
+      - name: Check session validity
+        id: check-session
+        if: always()
+        run: |
+          if [ -d "session/session-main/Default/IndexedDB" ] || [ -d "session/session-main/Default/Local Storage" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Valid WhatsApp profile found; saving cache"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️ No valid WhatsApp profile found; cache will not be updated"
+          fi
+
+      - name: Save session cache
+        if: always() && steps.check-session.outputs.exists == 'true'
+        uses: actions/cache/save@v4
         with:
-          node-version: 22
+          path: session
+          key: whatsapp-session-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Install Node dependencies
-        run: npm install
-        shell: bash
+      # ===== رفع الـ Artifacts للاطلاع =====
+      - name: Upload logs (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-logs-${{ github.run_id }}
+          path: logs/
+          retention-days: 7
+          if-no-files-found: ignore
 
-      - name: Run WhatsApp bot
-        shell: bash
+      - name: Upload dashboard snapshot (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-${{ github.run_id }}
+          path: dashboard/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # ===== دفع الملفات إلى المستودع =====
+      - name: Commit and push logs, dashboard, and aggregate
+        if: always()
         run: |
-          n=0
-          until [ "$n" -ge 3 ]
-          do
-            npm start && break
-            n=$((n+1))
-            echo "⚠️ حدث خطأ أثناء التشغيل، إعادة المحاولة $n/3..."
-            sleep 10
-          done
-
-      - name: Clean up unnecessary session files
-        shell: bash
-        run: |
-          echo "🧹 جاري تنظيف ملفات الكاش المؤقتة لتوفير المساحة..."
-          find ./session -type d -name "Cache" -exec rm -rf {} + 2>/dev/null || true
-          find ./session -type d -name "Code Cache" -exec rm -rf {} + 2>/dev/null || true
-          find ./session -type d -name "GPUCache" -exec rm -rf {} + 2>/dev/null || true
-          find ./session -type d -name "DawnGraphiteCache" -exec rm -rf {} + 2>/dev/null || true
-          find ./session -type d -name "DawnWebGPUCache" -exec rm -rf {} + 2>/dev/null || true
-          find ./session -type d -name "GraphiteDawnCache" -exec rm -rf {} + 2>/dev/null || true
-          find ./session -type d -name "GPUPersistentCache" -exec rm -rf {} + 2>/dev/null || true
-          find ./session -type d -name "CacheStorage" -exec rm -rf {} + 2>/dev/null || true
-          find ./session -type d -name "ScriptCache" -exec rm -rf {} + 2>/dev/null || true
-          find ./session -type d -name "Sessions" -exec rm -rf {} + 2>/dev/null || true
-          find ./session -type d -name "Shared Dictionary" -exec rm -rf {} + 2>/dev/null || true
-          
-          rm -f ./session/session-main/DevToolsActivePort 2>/dev/null || true
-          rm -f ./session/session-main/SingletonLock 2>/dev/null || true
-          rm -f ./session/session-main/SingletonCookie 2>/dev/null || true
-          rm -f ./session/session-main/SingletonSocket 2>/dev/null || true
-          
-          echo "✅ تم التنظيف بنجاح!"
-
-      - name: Commit updated files
-        shell: bash
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git rm -r --cached session --ignore-unmatch
-          git add --ignore-errors session dashboard aggregate.json logs
-          git commit -m "update session, dashboard & logs $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
-          git push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # ملاحظة: aggregate.json موجود داخل مجلد data حسب كودك
+          git add logs/ dashboard/ data/aggregate.json || true
+          if git diff --staged --quiet; then
+            echo "📭 No changes to commit"
+          else
+            git commit -m "Update logs, dashboard, and aggregate [skip ci]"
+            git push
+            echo "✅ Changes pushed to repository"
+          fi
