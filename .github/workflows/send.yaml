@@ -10,8 +10,7 @@ permissions:
 
 jobs:
   run:
-    runs-on: ubuntu-latest
-    container: node:22-bullseye
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repo
@@ -19,17 +18,17 @@ jobs:
         with:
           persist-credentials: true
 
-      - name: Install system dependencies
-        run: |
-          apt-get update
-          apt-get install -y libgbm-dev libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
-          libcups2 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
-          libasound2 libpango-1.0-0 libcairo2 libatspi2.0-0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: Install Node dependencies
         run: npm install
+        shell: bash
 
       - name: Run WhatsApp bot
+        shell: bash
         run: |
           n=0
           until [ "$n" -ge 3 ]
@@ -41,8 +40,9 @@ jobs:
           done
 
       - name: Clean up unnecessary session files
+        shell: bash
         run: |
-          echo "🧹 جاري تنظيف ملفات الكاش..."
+          echo "🧹 جاري تنظيف ملفات الكاش المؤقتة لتوفير المساحة..."
           find ./session -type d -name "Cache" -exec rm -rf {} + 2>/dev/null || true
           find ./session -type d -name "Code Cache" -exec rm -rf {} + 2>/dev/null || true
           find ./session -type d -name "GPUCache" -exec rm -rf {} + 2>/dev/null || true
@@ -54,13 +54,16 @@ jobs:
           find ./session -type d -name "ScriptCache" -exec rm -rf {} + 2>/dev/null || true
           find ./session -type d -name "Sessions" -exec rm -rf {} + 2>/dev/null || true
           find ./session -type d -name "Shared Dictionary" -exec rm -rf {} + 2>/dev/null || true
+          
           rm -f ./session/session-main/DevToolsActivePort 2>/dev/null || true
           rm -f ./session/session-main/SingletonLock 2>/dev/null || true
           rm -f ./session/session-main/SingletonCookie 2>/dev/null || true
           rm -f ./session/session-main/SingletonSocket 2>/dev/null || true
-          echo "✅ تم التنظيف!"
+          
+          echo "✅ تم التنظيف بنجاح!"
 
       - name: Commit updated files
+        shell: bash
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
