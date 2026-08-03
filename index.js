@@ -91,17 +91,34 @@ const client = new Client({
     clientId: "main",
     dataPath: SESSION_DIR,
   }),
-  puppeteer: {
+   puppeteer: {
     headless: true,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage", // مهم جداً لمنع الانهيار في GitHub Actions
+      "--disable-dev-shm-usage", // يمنع مشاكل الذاكرة في GitHub Actions
       "--disable-gpu",
-      "--disable-accelerated-2d-canvas",
-      "--disable-software-rasterizer",
-      "--no-zygote",
-      "--single-process", // يقلل استهلاك الموارد بشكل كبير
+      "--no-first-run",
+      "--disable-extensions",
+      "--disable-background-networking",
+      "--disable-background-timer-throttling",
+      "--disable-backgrounding-occluded-windows",
+      "--disable-breakpad",
+      "--disable-component-update",
+      "--disable-default-apps",
+      "--disable-hang-monitor",
+      "--disable-ipc-flooding-protection",
+      "--disable-popup-blocking",
+      "--disable-prompt-on-repost",
+      "--disable-renderer-backgrounding",
+      "--disable-sync",
+      "--force-color-profile=srgb",
+      "--metrics-recording-only",
+      "--safebrowsing-disable-auto-update",
+      "--password-store=basic",
+      "--use-mock-keychain",
+      "--lang=en-US,en;q=0.9",
+      "--window-size=1920,1080"
     ],
   },
 });
