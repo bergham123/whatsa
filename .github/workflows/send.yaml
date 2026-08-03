@@ -34,11 +34,46 @@ jobs:
       - name: Run WhatsApp bot
         run: npm start
 
+      - name: Clean up unnecessary session files
+        run: |
+          echo "🧹 جاري تنظيف ملفات الكاش المؤقتة لتوفير المساحة..."
+          # حذف مجلدات الكاش والبيانات المؤقتة التي لا تؤثر على الجلسة
+          find ./session -type d -name "Cache" -exec rm -rf {} + 2>/dev/null || true
+          find ./session -type d -name "Code Cache" -exec rm -rf {} + 2>/dev/null || true
+          find ./session -type d -name "GPUCache" -exec rm -rf {} + 2>/dev/null || true
+          find ./session -type d -name "DawnGraphiteCache" -exec rm -rf {} + 2>/dev/null || true
+          find ./session -type d -name "DawnWebGPUCache" -exec rm -rf {} + 2>/dev/null || true
+          find ./session -type d -name "GraphiteDawnCache" -exec rm -rf {} + 2>/dev/null || true
+          find ./session -type d -name "GPUPersistentCache" -exec rm -rf {} + 2>/dev/null || true
+          find ./session -type d -name "CacheStorage" -exec rm -rf {} + 2>/dev/null || true
+          find ./session -type d -name "ScriptCache" -exec rm -rf {} + 2>/dev/null || true
+          find ./session -type d -name "Sessions" -exec rm -rf {} + 2>/dev/null || true
+          find ./session -type d -name "Shared Dictionary" -exec rm -rf {} + 2>/dev/null || true
+          
+          # حذف ملفات القفل المؤقتة (تتسبب في مشاكل أحياناً إذا رفعت للمستودع)
+          rm -f ./session/session-main/DevToolsActivePort 2>/dev/null || true
+          rm -f ./session/session-main/SingletonLock 2>/dev/null || true
+          rm -f ./session/session-main/SingletonCookie 2>/dev/null || true
+          rm -f ./session/session-main/SingletonSocket 2>/dev/null || true
+          
+          # حذف ملفات السجل الجانبية داخل مجلد السيشن
+          find ./session -name "LOCK" -type f -delete 2>/dev/null || true
+          find ./session -name "LOG" -type f -delete 2>/dev/null || true
+          find ./session -name "LOG.old" -type f -delete 2>/dev/null || true
+          find ./session -name "*.log" -type f -delete 2>/dev/null || true
+          
+          echo "✅ تم التنظيف بنجاح!"
+
       - name: Commit updated files
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          # نضيف فقط الملفات الموجودة (نتجاهل الأخطاء)
+          
+          # إجبار Git على نسيان الملفات الكبيرة التي تم تتبعها مسبقاً في Runs سابقة
+          git rm -r --cached session --ignore-unmatch
+          
+          # إضافة الملفات من جديد (بدون الكاش)
           git add --ignore-errors session dashboard aggregate.json logs
+          
           git commit -m "update session, dashboard & logs $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
           git push
