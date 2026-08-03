@@ -32,7 +32,16 @@ jobs:
         run: npm install
 
       - name: Run WhatsApp bot
-        run: npm start
+        run: |
+          # محاولة التشغيل 3 مرات في حال انهار المتصفح في GitHub Actions
+          n=0
+          until [ "$n" -ge 3 ]
+          do
+            npm start && break
+            n=$((n+1))
+            echo "⚠️ حدث خطأ أثناء التشغيل، إعادة المحاولة $n/3..."
+            sleep 10
+          done
 
       - name: Clean up unnecessary session files
         run: |
@@ -50,17 +59,11 @@ jobs:
           find ./session -type d -name "Sessions" -exec rm -rf {} + 2>/dev/null || true
           find ./session -type d -name "Shared Dictionary" -exec rm -rf {} + 2>/dev/null || true
           
-          # حذف ملفات القفل المؤقتة (تتسبب في مشاكل أحياناً إذا رفعت للمستودع)
+          # حذف ملفات القفل المؤقتة (الخاصة بتشغيل المتصفح فقط وليست قواعد البيانات)
           rm -f ./session/session-main/DevToolsActivePort 2>/dev/null || true
           rm -f ./session/session-main/SingletonLock 2>/dev/null || true
           rm -f ./session/session-main/SingletonCookie 2>/dev/null || true
           rm -f ./session/session-main/SingletonSocket 2>/dev/null || true
-          
-          # حذف ملفات السجل الجانبية داخل مجلد السيشن
-          find ./session -name "LOCK" -type f -delete 2>/dev/null || true
-          find ./session -name "LOG" -type f -delete 2>/dev/null || true
-          find ./session -name "LOG.old" -type f -delete 2>/dev/null || true
-          find ./session -name "*.log" -type f -delete 2>/dev/null || true
           
           echo "✅ تم التنظيف بنجاح!"
 
@@ -68,12 +71,9 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          
           # إجبار Git على نسيان الملفات الكبيرة التي تم تتبعها مسبقاً في Runs سابقة
           git rm -r --cached session --ignore-unmatch
-          
           # إضافة الملفات من جديد (بدون الكاش)
           git add --ignore-errors session dashboard aggregate.json logs
-          
           git commit -m "update session, dashboard & logs $(date +'%Y-%m-%d %H:%M')" || echo "No changes to commit"
           git push
